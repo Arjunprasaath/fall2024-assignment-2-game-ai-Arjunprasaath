@@ -1,9 +1,11 @@
-from board import Board
-from constants import PLAYER1_PIECE_COLOR, PLAYER2_PIECE_COLOR
-from game import Game
-import board_configs
 import random
 import unittest
+import board_configs
+from game import Game
+from piece import Piece
+from board import Board
+from collections import Counter
+from constants import PLAYER1_PIECE_COLOR, PLAYER2_PIECE_COLOR
 
 
 # TO DO: Implement this function. The four lines currently implemented including the return are in place to make the
@@ -27,11 +29,33 @@ def minimax_alpha_beta(board, depth, alpha, beta, max_player, game, eval_params=
                 - best_move (Board): The board state after the best move
         """
 
-    score = 1
-    moves = game.generate_all_moves(board, PLAYER2_PIECE_COLOR)
-    best_move = random.choice(moves)
-
-    return score, best_move
+    if depth == 0 and game.winner() is not None:
+        return evaluate(board, game, *eval_params), board
+    
+    if max_player:
+        max_eval = float('-inf')
+        best_move = None
+        for move in game.generate_all_moves(board, PLAYER2_PIECE_COLOR):
+            evaluation, _ = minimax_alpha_beta(move, depth - 1, alpha, beta, False, game, eval_params)
+            if evaluation > max_eval:
+                max_eval = evaluation
+                best_move = move
+            alpha = max(alpha, evaluation)
+            if beta <= alpha:
+                break
+        return max_eval, best_move
+    else:
+        min_eval = float('inf')
+        best_move = None
+        for move in game.generate_all_moves(board, PLAYER1_PIECE_COLOR):
+            evaluation, _ = minimax_alpha_beta(move, depth - 1, alpha, beta, True, game, eval_params)
+            if evaluation < min_eval:
+                min_eval = evaluation
+                best_move = move
+            beta = min(beta, evaluation)
+            if beta >= alpha:
+                break
+        return min_eval, best_move
 
 def evaluate(board, game, pieces_weight=1.0, kings_weight=1.0, moves_weight=0.0, opportunities_weight=0.0, king_hopefuls_weight=0.0):
     """
@@ -80,7 +104,6 @@ def evaluate(board, game, pieces_weight=1.0, kings_weight=1.0, moves_weight=0.0,
 
     return score
 
-# TO DO: Implement this function.
 def counts(board, game, color):
     """
     Counts various metrics for pieces of a given color on the board.
@@ -99,7 +122,48 @@ def counts(board, game, color):
         - num_king_hopefuls (int): The total number of moves that lead to king promotions for the specified color.
     """
 
-    pass
+    moves = 0           
+    opportunities = 0 
+    future_kings = 0    
+
+    pieces = board.get_all_pieces(color)
+    piece_count = len(pieces)
+    king_count = sum(1 for p in pieces if p.king)     
+
+    for piece in pieces:
+        moves = []
+        if piece.king or color == PLAYER1_PIECE_COLOR:
+            moves.extend([(-1, -1), (-1, 1)])  
+        if piece.king or color == PLAYER2_PIECE_COLOR:
+            moves.extend([(1, -1), (1, 1)])    
+        for row_delta, col_delta in moves:
+            target_row = piece.row + row_delta
+            target_col = piece.col + col_delta
+
+            if 0 <= target_row < 8 and 0 <= target_col < 8:
+                adjacent_square = board.get_piece(target_row, target_col)
+                if adjacent_square == 0:
+                    move_count += 1
+                    if not piece.king:  
+                        if (color == PLAYER1_PIECE_COLOR and target_row == 0) or \
+                           (color == PLAYER2_PIECE_COLOR and target_row == 7):
+                            future_kings += 1
+
+                elif adjacent_square and adjacent_square.color != color:
+                    jump_row = target_row + row_delta
+                    jump_col = target_col + col_delta
+
+                    if 0 <= jump_row < 8 and 0 <= jump_col < 8:
+                        jump_square = board.get_piece(jump_row, jump_col)
+                        if jump_square == 0:
+                            move_count += 1
+                            capture_opportunities += 1
+                            if not piece.king:
+                                if (color == PLAYER1_PIECE_COLOR and jump_row == 0) or \
+                                   (color == PLAYER2_PIECE_COLOR and jump_row == 7):
+                                    future_kings += 1
+
+    return piece_count, king_count, moves, opportunities, future_kings
 
 def compare_boards(board1, board2):
     """
@@ -150,6 +214,7 @@ class AiTest(unittest.TestCase):
             board = Board(config)
             game = Game()
             colors = [PLAYER1_PIECE_COLOR, PLAYER2_PIECE_COLOR]
+            print(colors)
 
             piece_counts = [[7, 13], [7, 12], [6, 12], [1, 11], [1, 10], [2, 12]]
             king_counts  = [[2, 2], [2, 3], [3, 2], [1, 0], [1, 0], [1, 0]]
@@ -177,6 +242,7 @@ class AiTest(unittest.TestCase):
             board = Board(config)
             score = evaluate(board, game)
             self.assertEqual(score, expected_scores[b])
+            print(score, expected_scores[b])
 
     def test_evaluate_2(self):
 
