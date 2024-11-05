@@ -167,7 +167,7 @@ class Game:
             moves_tree = self.traverse(board, piece, piece.row, piece.col, 'back', 'right')
             moves = self.dfs_collect_move_destinations(moves_tree)
             all_moves.extend(moves)
-
+        
         return all_moves
 
     def traverse(self, board, piece, curr_row, curr_col, row_shift, col_shift, skipped=None, captured=None):
